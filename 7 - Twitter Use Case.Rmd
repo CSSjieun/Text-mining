@@ -1,0 +1,485 @@
+---
+title: "7 - Twitter Use Case_SOLVED"
+course: Text Mining - MUCSS 23/24
+date: "`r Sys.Date()`"
+output:
+  html_document: 
+    toc_depth: 10
+    fig_width: 15
+    fig_height: 8
+    df_print: tibble
+instructor: Carmen Torrijos
+based_on: tidytextmining.com
+editor_options: 
+  chunk_output_type: inline
+---
+
+------------------------------------------------------------------------
+
+# Twitter Use Case
+
+Even though Twitter is periodically threatening with closing access to massive data in its API, it is still working nowadays (March 2023), and Twitter data still attract a lot of attention. This can be because people are thought to be expressing themselves freely in the platform about any topic, product, situation or person, while surveys, interviews and questionnaires may be too conditioning.
+
+**Most followed Twitter accounts as of January 2023**
+
+![](images/Captura%20de%20Pantalla%202023-03-09%20a%20las%2016.57.35.png)
+
+The most followed Twitter accounts, as of January 2023, are @barackobama and @elonmusk, followed by @justinbieber and @katyperry, and then @rihanna and @cristiano. These people are not just being followed because they are famous, they are being followed because they tweet a lot. It is, they offer content, opinion and news through text and image that their followers like.
+
+Let's work with their tweets.
+
+## Preparing the tweets
+
+We have downloaded six different files, from the first six most followed accounts.
+
+-   Barack Obama
+
+-   Elon Musk
+
+-   Justin Bieber
+
+-   Katy Perry
+
+-   Rihanna
+
+-   Cristiano Ronaldo
+
+We download all tweets published by these accounts in a six-months period, from October 2022 to January 2023. Let's first check that we have them available in our folder.
+
+```{r}
+list.files()
+```
+
+And let's create variables for all of them, reading the files with `read_csv` (expect lots of messages).
+
+```{r}
+barackobama <- read_csv("barackobama.csv")
+elonmusk <- read_csv("elonmusk.csv")
+rihanna <- read_csv("rihanna.csv")
+justinbieber <- read_csv("justinbieber.csv")
+katyperry <- read_csv("katyperry.csv")
+cristiano <- read_csv("cristiano.csv")
+```
+
+Check one of them and look at the fields that the Twitter API gives as an output.
+
+```{r}
+View(katyperry)
+```
+
+It is important to know what types of columns we have. We use the `str()` function for that on our dataframe.
+
+```{r}
+str(katyperry)
+```
+
+## Variation over time
+
+We can look now at the variation of tweets over time by creating a plot for each account. To achieve this, we need a column with date and time data. This column seems to be called `creationDate`.
+
+In this code we create a combined dataframe with all tweets, called `tweets`, and we add a column called `person` to know who each tweet is coming from.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(readr)
+
+#we use bind_rows to unite the six datasets in one called tweets
+#we create an additional column to indicate which account the tweet is from
+tweets <- bind_rows(cristiano %>% 
+                      mutate(person = "Cristiano"),
+                    rihanna %>% 
+                      mutate(person = "Rihanna"),
+                    elonmusk %>%
+                      mutate(person = "Elon Musk"),
+                    barackobama %>%
+                      mutate(person = "Barack Obama"),
+                    justinbieber %>%
+                      mutate(person = "Justin Bieber"),
+                    katyperry %>%
+                      mutate(person = "Katy Perry")
+                    )
+
+#we plot using the creationDate in the X axis
+ggplot(tweets, aes(x = creationDate, fill = person)) +
+  geom_histogram(position = "identity", bins = 10, show.legend = FALSE) +
+  facet_wrap(~person, ncol = 1)
+```
+
+Elon Musk is tweeting far more than the others. Let's check how many tweets are published per month per account.
+
+```{r}
+library(ggplot2)
+
+# We convert the date to a year-month format
+tweets$creationDate <- format(as.Date(tweets$creationDate), "%Y-%m")
+
+# We count the number of tweets by person and date
+tweets_summary <- tweets %>% 
+  group_by(person, creationDate) %>% 
+  summarize(num_tweets = n())
+
+# We create a simple bar plot
+ggplot(tweets_summary, aes(x = creationDate, y = num_tweets, fill = person)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  labs(x = "Month", y = "Number of tweets", fill = "Person") + 
+  ggtitle("Number of tweets per user per month")
+
+```
+
+You can always take Elon away to see more realistic plots for the other accounts.
+
+## Word frequencies
+
+We are going to **use now our tidy tools** to make a tidy data frame of all the words in our tweets and their frequencies, and clean up words and expressions that we don't need.
+
+First, let's clean the data and tokenize with `unnest_tokens`.
+
+```{r}
+library(tidytext)
+library(stringr)
+
+#we create a regex with expressions we want to filter
+remove_reg <- "&amp;|&lt;|&gt;"
+
+tidy_tweets <- tweets %>% 
+  #we filter all retuits, tuits that start by RT
+  filter(!str_detect(text, "^RT|@")) %>%
+  #we remove the regex set before
+  mutate(text = str_remove_all(text, remove_reg)) %>%
+  #we tokenize
+  unnest_tokens(word, text) %>%
+  #we filter out stopwords
+  filter(!word %in% stop_words$word,
+         #we filter out apostrophes
+         !word %in% str_remove_all(stop_words$word, "'"),
+         #we filter out alphanumeric expressions
+         !word %>% str_detect("(?=[a-zA-Z]*\\d)(?=\\d*[a-zA-Z])[a-zA-Z0-9]+"),
+         !word %>% str_detect("\\d"),
+         !word %>% str_detect("t.co"))
+
+tidy_tweets
+```
+
+```{r}
+#let's check that all our 6 accounts are there
+unique(tweets$person)
+```
+
+Now we can calculate word frequencies for each person: we create a tibble with just three columns, person, word, and a count of how many times each person used each word.
+
+```{r}
+tidy_tweets_freq <- tidy_tweets %>% 
+                count(person, word, sort = TRUE)
+
+tidy_tweets_freq
+```
+
+```{r}
+#we filter it only to words appearing more than once
+tidy_tweets_freq <- tidy_tweets_freq %>%
+  filter(n > 1)
+
+tidy_tweets_freq
+```
+
+In the next code, we add a column called `total` with the total number of words used by each person, and we use it to create a column named `freq`: a **frequency ratio** for each person and word, it is, how many times the person used this word related to the total number of words this person has used.
+
+```{r}
+tidy_tweets_freq <- tidy_tweets_freq %>%
+                    left_join(tidy_tweets_freq %>% 
+                          count(person, name = "total")) %>%
+                mutate(freq = n/total)
+
+tidy_tweets_freq
+```
+
+This is a tidy dataset with all the information. However, to be able to plot these frequencies more neatly in the future, we may need a dataframe with the following structure:
+
+|            | Person 1 | Person 2 | Person 3 ... |
+|------------|----------|----------|--------------|
+| Word 1     | freq     | freq     | freq         |
+| Word 2     | freq     | freq     | freq         |
+| Word 3 ... | freq     | freq     | freq         |
+
+Thus, we use pivot wider to expand the dataset, taking names from the `person` column and values from the `freq` column. Like in this case:
+
+```{r}
+library(tidyr)
+
+frequencies <- tidy_tweets_freq %>% 
+  select(person, word, freq) %>% 
+  pivot_wider(names_from = person, values_from = freq)
+
+frequencies
+```
+
+Let's compare two people that should initially be very different in expression: Katy Perry and Cristiano.
+
+```{r}
+katy_cristiano <- tidy_tweets_freq %>%
+  #we filter these two people data from the tidy_tweets_freq
+  filter(person %in% c("Katy Perry", "Cristiano")) %>%
+  #we select the three columns
+  select(person, word, freq) %>%
+  pivot_wider(names_from = person, values_from = freq) %>%
+  arrange('Katy Perry', 'Cristiano')
+
+katy_cristiano
+```
+
+From this dataframe, we can create two plots with the 30 most frequent words of Katy and Cristiano.
+
+```{r}
+library(ggplot2)
+
+# We create a separate dataframe for each account
+df_cristiano <- katy_cristiano %>% select(word, Cristiano) %>% drop_na() %>% arrange(desc(Cristiano))
+df_katyperry <- katy_cristiano %>% select(word, `Katy Perry`) %>% drop_na() %>% arrange(desc(`Katy Perry`))
+
+# We create horizontal bar plots for each account
+ggplot(df_cristiano[1:30,], aes(x = reorder(word, Cristiano), y = Cristiano)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  xlab("Word") +
+  ylab("Frequency") +
+  ggtitle("Top 30 Words for Cristiano") +
+  coord_flip()
+
+ggplot(df_katyperry[1:30,], aes(x = reorder(word, `Katy Perry`), y = `Katy Perry`)) +
+  geom_bar(stat = "identity", fill = "salmon") +
+  xlab("Word") +
+  ylab("Frequency") +
+  ggtitle("Top 30 Words for Katy Perry") +
+  coord_flip()
+
+```
+
+## Words in retweets
+
+Another important characteristic of tweets is **how many times they are liked or retweeted**. Let's explore which words are more likely to be retweeted for these accounts tweets.
+
+First, we need to drop RTs and replies from the dataset, to work only with original tweets published by the accounts. Our starting point is the dataframe `tidy_tweets`. Remember that we have already:
+
+-   Cleaned `RT` and \@
+
+-   Removed expressions like `&amp;` with a regex
+
+-   Filtered stopwords, apostrophes and alphanumeric expressions
+
+To start with, let's look at the number of times each of our tweets was retweeted. Let's find the total number of retweets for each person.
+
+```{r}
+totals <- tidy_tweets %>% 
+  group_by(person, tweetId) %>% 
+  summarise(rts = first(retweetCount)) %>% 
+  group_by(person) %>% 
+  summarise(total_rts = sum(rts)) %>%
+  arrange(desc(total_rts))
+
+totals
+```
+
+Now let's find the median number of retweets for each word and person.
+
+```{r}
+word_by_rts <- new_tweets %>% 
+  group_by(tweetId, word, person) %>% 
+  #counts how many times each word was retweeted, for each tweet and person
+  summarise(rts = first(retweetCount)) %>% 
+  group_by(person, word) %>% 
+  #we can find the median retweets for each person and word, also count the number of times each word was used ever by each person and keep that in uses
+  summarise(retweetMedian = median(rts), uses = n()) %>%
+  #we can join this to the data frame of retweet totals. 
+  left_join(totals) %>%
+  filter(retweetMedian != 0) %>%
+  ungroup()
+
+#Let’s keep only words mentioned at least 5 times.
+word_by_rts %>% 
+  filter(uses >= 5) %>%
+  arrange(desc(retweetMedian))
+
+word_by_rts
+```
+
+The important thing is that we have here:
+
+-   person: the account publishing the tweet
+
+-   word: the word, tokenized
+
+-   **retweetMedian: how many times this word was retweeted being part of a tweet**
+
+-   uses: how many times this word was used in the tweets published by this account
+
+-   total_rts: the total number of retweets received by this account.
+
+With this information we can plot to see the words that have the highest median of retweets for each of our accounts.
+
+```{r}
+word_by_rts %>%
+  # Filter to include only rows where uses column is greater than 1
+  filter(uses > 1) %>%
+  # Group the data by person
+  group_by(person) %>%
+  # For each group, select the top 10 rows with the highest retweetMedian value
+  slice_max(retweetMedian, n = 10) %>% 
+  # Arrange the rows in ascending order of retweetMedian
+  arrange(retweetMedian) %>%
+  ungroup() %>%
+  # Convert the word column to a factor and set the levels to the unique values
+  mutate(word = factor(word, unique(word))) %>%
+  ungroup() %>%
+  ##plot settings
+  ggplot(aes(word, retweetMedian, fill = person)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ person, scales = "free", ncol = 2) +
+  coord_flip() +
+  labs(x = NULL, 
+       y = "Median # of retweets for tweets containing each word")
+```
+
+Filtering by uses \> 5, Rihanna has very few words, and Justin Bieber account is missing. Let's try filtering by uses in a lower number.
+
+------------------------------------------------------------------------
+
+## Exercise: words in likes
+
+We can follow a similar procedure to see which words led to receiving more likes. Are they different than the words that lead to receiving more retweets?
+
+### Step 1: create the totals dataframe
+
+Create a dataframe called `totals` starting from tidy tweets with the total number of likes by person.
+
+```{r}
+  totals <- tidy_tweets %>% 
+  group_by(person, tweetId) %>% 
+  summarise(likes = first(likeCount)) %>% 
+  group_by(person) %>% 
+  summarise(total_likes = sum(likes)) %>%
+  arrange(desc(total_likes))
+  
+totals
+```
+
+### Step 2: find the median
+
+Create a dataframe called `word_by_likes` with the median number of likes for each word and person.
+
+```{r}
+word_by_likes <- tidy_tweets %>% 
+  group_by(tweetId, word, person) %>% 
+  summarise(likes = first(likeCount)) %>% 
+  group_by(person, word) %>% 
+  summarise(likeCount = median(likes), uses = n()) %>%
+  left_join(totals) %>%
+  filter(likeCount != 0) %>%
+  ungroup()
+
+word_by_likes
+```
+
+### Step 3: plot words by likes
+
+Create a plot with the dataframe `word_by_likes` and the 30 words most leading to likes. Filter by `uses >= 2`.
+
+```{r}
+word_by_likes %>%
+  filter(uses >= 2) %>%
+  group_by(person) %>%
+  slice_max(likeCount, n = 10) %>% 
+  arrange(likeCount) %>%
+  ungroup() %>%
+  mutate(word = factor(word, unique(word))) %>%
+  ungroup() %>%
+  ggplot(aes(word, likeCount, fill = person)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ person, scales = "free", ncol = 2) +
+  coord_flip() +
+  labs(x = NULL, 
+       y = "Median # of likes for tweets containing each word")
+```
+
+Obama, for example, is most retweeted when he talks about politics, but is most liked when he talks about sports. Katy was most retweeted with American Idol, but was most liked with the crowdfunding for the Turkey earthquake:
+
+![](images/Captura%20de%20Pantalla%202023-03-12%20a%20las%2011.41.38.png){width="437"}
+
+Find more differences with the other accounts between words leading to retweets and words leading to likes.
+
+## Exercise: topic modelling on tweets
+
+Starting from the `tidy_tweets_freq` dataframe, group your tweets in 4 topics.
+
+-   Have a look at `tidy_tweets_freq` to remember how it is built.
+
+```{r}
+tidy_tweets_freq
+```
+
+-   Cast the DTM (call library `tidytext`)
+
+```{r}
+library(tidytext)
+tweets_dtm <- cast_dtm(tidy_tweets_freq, person, word, n)
+
+tweets_dtm
+```
+
+-   Pass it through the `LDA()` algorithm
+
+```{r}
+library(topicmodels)
+
+tweets_lda <- LDA(tweets_dtm, k = 4, control = list(seed = 1234))
+tweets_lda
+```
+
+-   Tidy it back to find the `beta` measure
+
+```{r}
+tweets_topics <- tidy(tweets_lda)
+tweets_topics
+```
+
+-   Create a dataframe called `top_terms` with the 20 words with higher `beta` for each topic.
+
+```{r}
+top_terms <- tweets_topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 20) %>% 
+  ungroup() %>%
+  arrange(topic, -beta)
+
+top_terms
+```
+
+-   Make a plot with the `top_terms` dataframe.
+
+```{r}
+library(ggplot2)
+
+top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+```
+
+Not happy with the result? If it does not correspond to these accounts usual conversation themes, try with 5 topics.
+
+## Summary
+
+We have learned so far:
+
+-   How to read Twitter files and know the different columns
+
+-   How to plot to see variation over time with different accounts
+
+-   How to measure word frequencies in tweets
+
+-   How to identify words leading to more retweets
+
+-   How to identify words leading to more likes
+
+-   How to perform topic modelling over a Twitter archive
