@@ -1,0 +1,416 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Social media related CNN news articles: "How does the U.S. think of social media?"
+
+I collected the text data from CNN news articles to investigate the trends and public opinion related to social media in the United States. 
+
+1. First article: Florida governor signs law restricting social media access for children 
+
+CNN News article titled "Florida governor signs law restricting social media access for children." I chose this text to investigate the people's opinion on restricting social media access for children in the U.S. Some people would agree that law for restricting children social media access is necessary to protect them from harmful contents but, on the other hand, the other side of people argue that this law would infringe on teen's First Amendment rights to access the information. 
+
+2. Second article: Judge rules YouTube, Facebook and Reddit must face lawsuits claiming they helped radicalize a mass shooter
+
+A New York state judge on Monday denied a motion to dismiss a lawsuit against several social media companies alleging the platforms contributed to the radicalization of a gunman who killed 10 people at a grocery store in Buffalo, New York in 2022, court documents show.
+
+3. Third article: Supreme Court to debate whether White House crosses First Amendment line on social media disinformation
+
+Biden administration officials have for years persuaded social media platforms such as Facebook and X to take down posts that include misinformation about vaccines, the Covid-19 pandemic and the 2020 election, among other things.
+
+But the Supreme Court must now decide whether those efforts go too far – when the government, in other words, veers into censorship on social media that violates the First Amendment.
+
+4. Fourth article: The 26-year-old YouTuber conquering French journalism
+
+HugoDecrypte’s Instagram account has more followers than Le Monde, the French daily widely considered the country’s newspaper of record, as well as BFMTV and France24, arguably the two most popular 24-hour news networks in France. And its daily news update is the most downloaded podcast in the country, according to media monitor ACPM.
+
+Whatever you call him, there’s no denying that Travers has created something that resonates with young audiences shunning traditional media in France, where mistrust of the news industry runs deeper than in much of the rest of Europe.
+
+5. Fifth article: More than a third of teens say they spend too much time on their phones, new study finds
+
+Around 40% of teenagers say they have cut back on their time on social media, according to a report published Monday by the Pew Research Center. Nearly the same proportion of teens acknowledge that they spend “too much” time on their smartphones (38%) and social media (27%).
+
+## Data (text) crawling and Tokenization
+
+```{r}
+rm(list=ls())
+install.packages("xml2")
+install.packages("stringr")
+install.packages("rvest")
+install.packages("tidytext")
+install.packages("tibble")
+install.packages("dplyr")
+install.packages("tidyr")
+library(xml2)
+library(stringr)
+library(rvest)
+library(tidytext)
+library(tibble)
+library(dplyr)
+library(tidyr)
+
+CNN_url_1 <- "https://edition.cnn.com/2024/03/25/tech/florida-social-media-law-age/index.html"
+
+CNN_url_2 <- "https://edition.cnn.com/2024/03/19/tech/buffalo-mass-shooting-lawsuit-social-media/index.html"
+
+CNN_url_3 <- "https://edition.cnn.com/2024/03/17/politics/supreme-court-social-media-disinformation-first-amendment-covid-election-2024/index.html"
+  
+CNN_url_4 <- "https://edition.cnn.com/2024/03/16/media/france-hugodecrypte-youtube-profile-travers-intl-cmd/index.html"
+  
+CNN_url_5 <- "https://edition.cnn.com/2024/03/11/tech/teens-feelings-social-media-pew-study/index.html"
+
+CNN_urls <- c(CNN_url_1, CNN_url_2, CNN_url_3, CNN_url_4, CNN_url_5)
+```
+
+## Tokenize the text at once
+
+```{r}
+# Make the custom_stop_words to filter meaningless words
+custom_stop_words <- bind_rows(tibble(word=c("cnn", "social", 
+                                             "media", "travers", "news", "platforms"), 
+                              lexicon=c("custom", "custom", "custom", 
+                                        "custom", "custom", "custom")),
+                               stop_words)
+
+merged_tibble <- tibble(word = character(), n = numeric())
+
+# Loop through each URL
+for (i in seq_along(CNN_urls)) {
+  # Read HTML content from the current URL
+  text <- read_html(CNN_urls[i]) %>%
+    html_elements(xpath = "//div[@class='article__content']") %>%
+    html_text() %>%
+    gsub("\n", "", .) %>%
+    gsub("—", "", .) %>%
+    str_replace_all("[()]", "")
+  
+  # Create a tibble from the processed text
+  tibble_text <- tibble(text)
+  
+  # Apply unnest_tokens to the tibble
+  tidy_text <- tibble_text
+    
+  # Merge the current tibble with the merged_tibble based on the "word" column
+  merged_tibble <- rbind(merged_tibble, tidy_text)
+}
+
+print(merged_tibble)
+
+install.packages("readr")
+library(readr)
+
+# To save the time I saved the tibble as the dataset 
+write_csv(merged_tibble, "merged_tibble.csv")
+# Therefore now it can be used by using read.csv function
+merged_tibble <- read.csv("merged_tibble.csv")
+
+# Sum the counts for each word across all tibbles
+tidy_merged_tibble <- merged_tibble |> unnest_tokens(word, input = text) %>%
+    anti_join(custom_stop_words) |>  count(word, sort = TRUE)
+
+# Print the merged tibble
+print(tidy_merged_tibble)
+```
+I collected the text data from the CNN news article related to the social media access. I have used web crawling method to get the text by "rvest" library and used "stringr", "tidytext", and "tibble" to tokenize the text into words. After making the text into words, I filtered the stop_words and used the count function to see the overall number of words counts using "dplyr" library. Then I visualize the 5 most frequent words in the article.
+
+### Graph 1. Overview of the words count from the CNN new article related to social media
+
+```{r}
+#install.packages("ggplot2")
+library(ggplot2)
+
+tidy_merged_tibble |> filter(n > 5) |> mutate(word = reorder(word, n))|> 
+                 ggplot(aes(n, word)) + geom_col(show.legend = FALSE, fill = "skyblue") +
+                 theme_minimal() + labs(y = NULL, x = NULL)
+```
+
+The most frequent words in the 5 CNN news articles related to the social media are "teens", "court", "government", "companies", and "youtube". From this graph, we can assume that the trends related to the social media in the United States are that government focus on the teenager social media usages such as YouTube and even the social media companies are sued and have a trial in the court. 
+
+### Sentiment analysis
+
+```{r}
+#install.packages("tidytext")
+#install.packages("textdata")
+library(tidytext)
+library(textdata)
+
+get_sentiments("afinn")
+get_sentiments("bing")
+get_sentiments("nrc")
+
+# See the word count with sentiment type
+word_sentiment <- tidy_merged_tibble |> inner_join(get_sentiments("bing"))
+print(word_sentiment)
+
+# Check the total number of words for each sentiment: negative and positive.
+word_sentiment |> group_by(sentiment) |> summarise(total = sum(n)) |> ungroup()
+```
+
+### Graph 2. each words
+
+```{r}
+# Words count by each sentiment
+word_sentiment |> filter(n > 1) |>  mutate(word = reorder(word, n)) |>  
+  ggplot(aes(n, word, fill = sentiment)) + 
+  geom_col(show.legend = FALSE) +
+  theme_minimal() + labs(x=NULL, y=NULL) + 
+  facet_wrap(~sentiment, ncol=2, scales="free")
+```
+The most frequent words related to the social media CNN news article are "conservative", "harm", "violate", "threaten", "suppress", and "prohibit" for the negative sentiment and "supreme", "free", "trust", "popular", and "success" for the positive sentiment. Therefore, we can assume that people from the United States think of social media with those words and sentiments.
+
+### Graph 3. each sentiment
+
+```{r}
+# Total word counts by each sentiment
+word_sentiment |> group_by(sentiment) |> summarise(total = sum(n)) |> ungroup() |> 
+  ggplot(aes(total, sentiment, fill = sentiment)) + 
+  geom_col(show.legend = FALSE) +
+  theme_minimal() + labs(x=NULL, y=NULL) 
+```
+From the graph 3, we can see there are more negative words (101) than positive words (62) in the CNN news articles related to social media. Therefore, we can assume that people use more negative words related to the social media in the United States. 
+
+### N-grams analysis
+
+```{r}
+# Tokenizing the text into bigrams
+news_bigrams <- merged_tibble |> unnest_tokens(bigram, text, token = "ngrams", n = 2) |> 
+  filter(!is.na(bigram)) |> 
+  separate(bigram, c("word1", "word2"), sep = " ") |> 
+  filter(!word1 %in% custom_stop_words$word) |> 
+  filter(!word1 %in% custom_stop_words$word) 
+
+# countr the bigrams
+bigram_counts <- news_bigrams %>% 
+  #how many times in the bigrams_filtered they appear together
+  count(word1, word2, sort = TRUE)
+
+bigram_counts
+
+# Unite the bigrams
+bigrams_united <- news_bigrams %>%
+  unite(bigram, word1, word2, sep = " ")
+
+bigrams_united
+```
+
+Secondly, I did the n-gram analysis using bigrams. There are in total 8 bigrams with word of "supreme" and "court." From this, we can assume that nowadays may social media related trials have been done in the United States. Next, "time"+"on", "content"+"that", "biden"+"administration" are the most frequently used word combinations as bigrams. 
+
+### Graph 4. Bigrams wordcloud
+
+```{r}
+install.packages("wordcloud2")
+library(wordcloud2)
+
+set.seed(700)
+
+bigrams_united %>%
+pull(bigram) |> table() |> sample(size = 100) |> 
+  wordcloud2(color = "random-dark",
+            fontWeight = 550,
+            size = 0.4,
+            widgetsize = c(900, 500))
+
+```
+From the graph 4, we acn see bigrams from the CNN news articles related to social media. Some of them are "private entities", "feel anxious", "instagram or", teens and", and "pass laws."
+
+## Tokenize text by articles
+
+```{r}
+tibble_list <- list()
+
+for (i in seq_along(CNN_urls)) {
+  # Read HTML content from the current URL
+  news <- read_html(CNN_urls[i]) %>%
+    html_elements(xpath = "//div[@class='article__content']") %>%
+    html_text() %>%
+    gsub("\n", "", .) %>%
+    gsub("—", "", .) %>%
+    str_replace_all("[()]", "")
+  
+  tibble_text <- tibble(news)
+  
+  # Store the text in the list
+  tibble_list[[i]] <- tibble_text
+}
+
+merged_tidy_news <- bind_rows(tibble_list, .id = "source") %>%
+  mutate(source = paste("Source", row_number())) 
+
+# Save the merged_tidy_news as csv data
+write_csv(merged_tidy_news, "merged_tidy_news.csv")
+# Read csv to get the data
+merged_tidy_news <- read.csv("merged_tidy_news.csv")
+
+merged_tidy_news_words <- merged_tidy_news |> unnest_tokens(word, news) |>
+                          anti_join(custom_stop_words) 
+```
+
+### Visualization
+
+```{r}
+install.packages("ggplot2")
+library(ggplot2)
+
+merged_tidy_news_words |> count(source, word, sort=TRUE) |>  group_by(source) |> 
+             filter(n > 3) |> ungroup() |> 
+             mutate(word = reorder(word, n)) |> 
+             ggplot(aes(n, word, fill = source)) + 
+             geom_col(show.legend = FALSE) +
+             facet_wrap(~factor(source, levels = c("Source 1", "Source 2", 
+                                                 "Source 3", "Source 4", "Source 5")),
+                        ncol=5, scales="free") + theme_minimal()
+```
+
+Five different articles have different words distribution. 
+
+From first article, there are words such as "legislation", "law", "florida", and "accounts." We can assume that this article is related to Florida law legislation related to the social media.
+
+From second article, there are words such as "court", "companies", "reddit", and "decision." We can assume that this article is about the trial related to social media companies such as reddit and some kind of decision has been made from the court. 
+
+From third article, there are words such as "government", "court", "amendment", "biden", "administration", "private", "disinformation", and "decision." We can assume that biden administration announced or made some decisions related to social media disinformation problem.
+
+From fourth article, there are words such as "french", "hugodecrypte", "youtube", journalism", and "channel." We can assume that in french YouTube, there is a hugodecrpyte channel and it should be related to the journalism.
+
+Finally, from the fifth article, there are words such as "teens", "parents", "smartphones", and "time." Therefore, we can assume that teens have a problem related to the smartphone usage time by doing social media and this problems somehow require their parents' help.
+
+### Sentiment analysis
+
+```{r}
+library(tidytext)
+library(textdata)
+
+news_sentiment <- bind_rows(
+  #Bing
+  merged_tidy_news_words %>% 
+    #we get sentiments from bing
+    inner_join(get_sentiments("bing")) %>%
+    #we create the column for bing
+    mutate(method = "Bing et al."),
+  #NRC
+  merged_tidy_news_words %>% 
+    #we get sentiment from nrc 
+    inner_join(get_sentiments("nrc") %>% 
+                 #we filter just sentiment, not emotions
+                 filter(sentiment %in% c("positive", 
+                                         "negative"))
+    ) %>%
+    #we create the column for nrc
+    mutate(method = "NRC")) %>%
+  #we divide in chunks of 80 lines
+  count(method, index = rep(1:(n() %/% 80), 
+                                  each = 80, length.out = n()), sentiment, word) %>%
+  #we write positive and negative in different columns
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0) %>% 
+  #we extract net sentiment by substraction
+  mutate(sentiment = positive - negative)
+```
+
+### Graph 5. Sentiment analysis
+
+```{r}
+# Comparison between bing and nrc
+news_sentiment |> slice_max(abs(sentiment) > 1) |> 
+                  mutate(word = reorder(sentiment, word)) |> 
+                  ggplot(aes(sentiment, word, fill = method)) + 
+                  geom_col(show.legend = FALSE) +
+                  facet_wrap(~method, ncol=2, scales="free") +
+                  theme_minimal() + labs(x="net sentiment", y=NULL)
+
+afinn <- merged_tidy_news_words %>% 
+  inner_join(get_sentiments("afinn")) %>% 
+  group_by(word, index = rep(1:(n() %/% 80), each = 80, length.out = n())) %>% 
+  summarise(sentiment = sum(value)) %>% 
+  ungroup() %>% 
+  mutate(method = "AFINN")
+
+# comparison among bing, nrc, and afinn
+bing_afinn_nrc <- bind_rows(afinn, news_sentiment) %>%
+  select(word, index, sentiment, method) 
+
+bing_afinn_nrc |> 
+              filter(abs(sentiment) > 2) |> 
+               mutate(word = reorder(word, sentiment)) |> 
+               ggplot(aes(sentiment, word, fill = method)) + 
+               geom_col(show.legend = FALSE) +
+               facet_wrap(~method, ncol=3, scales="free") +
+               theme_minimal() + labs(y=NULL, x="net sentiment")
+
+bing_afinn_nrc |> group_by(method) |> 
+                  slice_max(sentiment, n=1) |> ungroup()
+
+bing_afinn_nrc |> group_by(method) |> 
+                  slice_min(sentiment, n=1) |> ungroup()
+```
+From the AFINN, popular has the highest positive net sentiment (9), and harm has the highest negative net sentiment (-8). From the Bing et al., supreme has the highest positive net sentiment (7), and both of conservative and harm have the highest neagtive net sentiment (-3). From the NRC, content has the highest positive net sentiment (6), and government has the highest negative net sentiment (-11). Overall, AFINN lexicon is biased to negative words, and both of Bing et al. and NRC lexicons are biased to positive words. This words sentiment distribution provide the insight which words from either positive or negative sentiments U.S. people would use to describe the social media related things in the news article. 
+ 
+### TF-IDF 
+
+```{r}
+library(dplyr)
+library(tidytext)
+
+total_words <- merged_tidy_news_words |> count(source, word, sort=TRUE) |>
+  group_by(source) |> summarize(total = sum(n)) |> ungroup()
+
+# word count
+news_word_count <- merged_tidy_news_words |> count(source, word, sort=TRUE) 
+
+# calcuate the term frequency
+news_word_count_total <- left_join(news_word_count, total_words)
+news_word_count_total <- news_word_count_total |> 
+  mutate(term_frequency = n/total)
+
+# TF-IDF
+news_tf_idf <- news_word_count %>%
+  bind_tf_idf(word, source, n)
+```
+The more documents containing the word, the less distinctive it is of any of them, so the TF-IDF metric will be higher for words that occur fewer times.
+
+### Graph 6. Term frequency
+
+```{r}
+library(ggplot2)
+news_word_count_total |> group_by(source) |>  slice_max(term_frequency, n=5) |> 
+  ungroup() |> mutate(word = reorder(word, term_frequency)) |> 
+  ggplot(aes(term_frequency, word, fill = source)) +
+  geom_col(show.legend=FALSE) +
+  facet_wrap(~source, ncol=2, scales="free") +
+  theme_minimal() + labs(y=NULL, x="Term Frequency")
+```
+Term frequency graph shows overall term frequency distribution by each article source. The top words that have the highest term frequency in the article 1 are "legislation", "law", and "florida" For article 2, words are "content", "court", "reddit", "decision", and "companies." For article 3, words are "government", "court", "companies", "amendment", and "supreme." For article 4, words are "french", "hugodecrypte", "yotube", "audiences", and "people." Finally, for article 5, words are "teens", "report", "parents", "smartphones", "teen", "phones", and "pew." By these keywords from each articles, we can assume the article stories and approximate atmosphere related to social emdia in the United States without reading the whole articles. 
+
+### Graph 7. TF-IDF
+
+```{r}
+#install.packages("forcats")
+library(forcats)
+
+news_tf_idf %>%
+  group_by(source) %>%
+  #choose maximum number of words
+  slice_max(tf_idf, n = 8) %>%
+  ungroup() %>%
+  ggplot(aes(tf_idf, fct_reorder(word, tf_idf), fill = source)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~source, ncol = 3, scales = "free") +
+  labs(x = "tf-idf", y = NULL)
+
+```
+
+When the value of TF-IDF is high then it means the words are rare among the documents. The words having the highest TF-IDF from the first article are "law", "florida", and "accounts." We can say since florida is a state name it can have the highest TF-IDF value. From second article, words are "reddit", "statement", "lawsuit", and "court." From third article, words are "government", "court", and "speech." From fourth article, words are "french", "hugodecrypte", and "audiences." Finally, from the fifth article, words are "teens", "smartphones", and "report." As we realize from the first article words, when there are pronouns then it tends to have the highest TF-IDF value since it will have less possibility to appear on the same CNN news articles. For example, from article 4, "hugodecrpyte" is a specific YouTube channel name so it beomces the word that have the highest TF-IDF values. Moreover, from the TF-IDF analysis, we can approximately capture the story of the News article because it shows us the keywords which are the most important from the articles. Therefore, with this process, we can get not only the flow of the CNN news articles stories but also current situations in the United States related to the social media without reading the whole articles. 
+
+## Conclusion
+
+In conclusion I have used three different techniques which are "sentiment analysis", "n-grams analysis", and "topic modeling." 
+
+
+
+
+
+
+
+
+
