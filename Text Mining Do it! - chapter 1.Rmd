@@ -1,0 +1,170 @@
+---
+title: "textmining Do it!"
+author: "Jieun Park"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Chapter 1 단어 빈도 분석: 무엇을 강조했을까?
+
+```{r}
+library(xml2)
+library(rvest)
+library(stringr)
+library(tidyr)
+
+url = "https://ko.wikisource.org/wiki/%EB%AC%B8%EC%9E%AC%EC%9D%B8_%EC%B6%9C%EB%A7%88%EC%84%A0%EC%96%B8%EB%AC%B8"
+web <- read_html(url, encoding="UTF-8")
+web
+
+# Use the XPath to select the desired nodes with a specific class attribute
+node <- web |> html_elements(xpath = "//div[@lang='ko']") |> html_text() 
+clean_text <- str_replace_all(node, "\n", "")
+clean_text <- str_replace_all(clean_text, "[A-Za-z]+", "")
+
+text <- clean_text |> str_replace_all("[^가-힣\\s]", "")
+text <- tibble(text)
+
+```
+### 연속된 공백 제거하기
+
+```{r}
+#연속된 공백 제거하기
+library(stringr)
+
+moon <- str_squish(text)
+```
+
+### tibble 구조로 바꾸기
+
+```{r}
+library(dplyr)
+moon <- as_tibble(moon)
+
+moon
+```
+
+### tokenization
+
+```{r}
+library(tidytext)
+text <- tibble(value=c("대한민국은 민주공화국이다. 대한민국의 주권은 국민에게 있고, 모든 권력은 국민으로부터 나온다."))
+
+text |> unnest_tokens(word, value, token="words")
+
+word_space <- moon |> unnest_tokens(word, value, token="words")
+word_space
+```
+
+### Word Frequency Analysis
+
+```{r}
+word_space <- word_space |> count(word, sort=T)
+word_space
+```
+
+### 한글자로 된 단어 제거하기
+
+```{r}
+# str_count() 글자수 세기
+word_space = word_space |> filter(str_count(word) > 1)
+word_space
+```
+
+### 빈도가 높은 단어 추출하기
+
+```{r}
+top20 <- word_space |> head(n=20)
+top20
+
+# 그래프
+install.packages("ggplot2")
+library(ggplot2)
+library(showtext)
+
+font_add_google("Nanum Gothic", "nanumgothic")
+showtext_auto()
+
+top20 |> ggplot(aes(x= reorder(word, n), y=n)) + geom_col() + coord_flip() + theme(text = element_text(family = "Nanum Gothic"))
+```
+
+
+```{r}
+theme_set(theme_gray(base_family = "AppleGothic"))
+
+top20 |> ggplot(aes(x= reorder(word, n), y=n)) + geom_col() + coord_flip() + theme(text = element_text(family = "Nanum Gothic")) +
+  geom_text(aes(label = n), hjust = -0.3) +
+  labs(title = "문재인 대통령 출마 연설문 단어 빈도", x = NULL, y = NULL) +
+  theme(title = element_text(size=12))
+```
+
+### word crowd
+
+```{r}
+install.packages("ggwordcloud")
+library(ggwordcloud)
+
+word_space |> ggplot(aes(label = word, size = n, color = n)) +
+  geom_text_wordcloud(seed=1234, family = "nanumgothic") +
+  scale_radius(limits = c(3, NA), 
+               range = c(3, 30)) +
+  scale_color_gradient(low = "#66aaf2",
+                       high = "#004EA1") +
+  theme_minimal()
+```
+
+
+```{r}
+font_add_google(name = "Black Han Sans", family = "blackhansans")
+showtext_auto()
+
+word_space |> ggplot(aes(label = word, size = n, color = n)) +
+  geom_text_wordcloud(seed=1234, family = "blackhansans") +
+  scale_radius(limits = c(3, NA), 
+               range = c(3, 30)) +
+  scale_color_gradient(low = "#66aaf2",
+                       high = "#004EA1") +
+  theme_minimal()
+```
+
+
+```{r}
+library(xml2)
+library(rvest)
+library(stringr)
+library(tidyr)
+library(tidytext)
+library(dplyr)
+
+url = "https://barnard.edu/commencement/archives/2012/barack-obama-remarks"
+web <- read_html(url, encoding = "UTF-8")
+
+obama <- web |> 
+  html_elements(xpath = '//div[contains(@class, "content")]') |> html_text()
+
+obama <- str_replace_all(obama, "\n", "")
+obama <- str_replace_all(obama, "[^A-Za-z\\s]", " ")
+obama <- str_squish(obama)
+
+obama <- tibble(obama)
+
+word_obama <- obama |> unnest_tokens(word, obama, "words")
+word_obama
+
+word_count_obama <- word_obama |>  count(word, sort=T)
+word_count_obama <- word_count_obama |> filter(!word %in% stop_words$word)
+
+top20 <- word_count_obama |> head(n=20)
+top20
+```
+
+```{r}
+top20 |> ggplot(aes(x=reorder(word, n), y=n)) +
+  geom_col() +
+  coord_flip() +
+  theme(text = element_text(family = "Nanum Gothic")) +
+  labs(title = "Obama Speech 2012", x=NULL, y=NULL)
+```
+
+
+
