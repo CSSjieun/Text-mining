@@ -12,32 +12,41 @@ $: 끝나는 것
 \$($), ^\$ (맨앞 $), \$$(마지막 $)
 ```
 
+```python
 .: 모든 character matching
-......: 6 characters group matching
-\.: character .
-\..\. : character . + anycharacter + character .
 
+......: 6 characters group matching
+
+\.: character .
+
+\..\. : character . + anycharacter + character .
+```
+
+```python
 []: []안에 있는 모든 것들
+
 [dH]. : d 또는 H 그리고 그 뒤에 아무 문자
 
 [-]: range
+
 [^]: 빼고 다
 
 sub patter -> (a|b|c): a 또는 b 또는 c
+```
 
-Quantifiers *, +, ?: 
-*: * 앞에 문자가 0개 이상
-+: + 앞에 문자가 1개 이상
+*Quantifiers *, +, ?*: (br/)
+*: * 앞에 문자가 0개 이상(br/)
++: + 앞에 문자가 1개 이상(br/)
 ?: ? 앞에 문자가 없거나 1개
 
-.*: 모든 텍스트
+.*: 모든 텍스트(br/)
 [-@]*: - 또는 @가 0개 이상
 
-수량자 {}: {} 있는 숫자 만큼
-.{5}: 어떤 character던지 5글자
-[els]{1,3}: e l s 셋 중 1하나 이상 3개 이하
-[a-z]{3,}: 3개이상의 단어
-.*?: 수량자 최소 단위 0으로 바뀜
+수량자 {}: {} 있는 숫자 만큼(br/)
+.{5}: 어떤 character던지 5글자(br/)
+[els]{1,3}: e l s 셋 중 1하나 이상 3개 이하(br/)
+[a-z]{3,}: 3개이상의 단어(br/)
+.*?: 수량자 최소 단위 0으로 바뀜(br/)
 
 정규표현식 사이트 = [regexr](gskinner.com/RegExr/)
 
