@@ -37,7 +37,7 @@ Quantifiers *, +, ?:
 [a-z]{3,}: 3개이상의 단어
 .*?: 수량자 최소 단위 0으로 바뀜
 
-정규표현식 사이트 = (regexr)[gskinner.com/RegExr/] 
+정규표현식 사이트 = [regexr](gskinner.com/RegExr/)
 
 
 (reference: Do it! R text mining)
