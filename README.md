@@ -59,6 +59,28 @@ Quantifiers *, +, ?:
 .*?: 수량자 최소 단위 0으로 바뀜
 ```
 
+```python
+\w: 단어 (alph numeric _)
+
+\W: 단어가 아닌 것 = 특수기호
+
+\d: 0-9까지의 숫자
+
+\D: 숫자가 아닌 것들
+
+\bcat: **cat** concat,
+
+cat\b: **cat** con**cat**
+
+\A...: 시작점 이후 세개의 문자
+
+...\Z: 끝에서 부터 세개의 문자
+
+(?=<pattern>): pattern을 선택하지 않음
+
+
+```
+
 정규표현식 사이트 = [regexr](gskinner.com/RegExr/)
 
 
