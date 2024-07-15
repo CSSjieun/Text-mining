@@ -8,7 +8,9 @@ This is the repository of the project related to the text-mining using R program
 $: 끝나는 것
 
 택스트 안에서 $를 찾기 위해서는
+```python
 \$($), ^\$ (맨앞 $), \$$(마지막 $)
+```
 
 .: 모든 character matching
 ......: 6 characters group matching
